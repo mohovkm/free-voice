@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Dendrite media cleanup {{ media_cleanup_schedule }}
+Requires=media-cleanup.service
+
+[Timer]
+OnCalendar={{ media_cleanup_schedule }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,45 @@
+---
+- name: Install network tools
+  apt:
+    name:
+      - network-manager
+      - wpasupplicant
+      - wireless-tools
+    state: present
+
+- name: Create NetworkManager connection for eth0 with static IP
+  community.general.nmcli:
+    conn_name: eth0-static
+    ifname: eth0
+    type: ethernet
+    ip4: "{{ config.pi_static_ip }}/24"
+    gw4: "{{ config.pi_gateway }}"
+    dns4: "{{ pi_dns_servers }}"
+    state: present
+    autoconnect: yes
+
+- name: Set eth0 connection priority (metric)
+  command: nmcli connection modify eth0-static ipv4.route-metric 100
+  changed_when: false
+
+- name: Create NetworkManager connection for wlan0 (WiFi failover)
+  community.general.nmcli:
+    conn_name: wlan0-failover
+    ifname: wlan0
+    type: wifi
+    ssid: "{{ vault_wifi_ssid }}"
+    wifi_sec:
+      key-mgmt: wpa-psk
+      psk: "{{ vault_wifi_password }}"
+    state: present
+    autoconnect: yes
+
+- name: Set wlan0 connection priority (lower priority for failover)
+  command: nmcli connection modify wlan0-failover ipv4.route-metric 200
+  changed_when: false
+
+- name: Ensure NetworkManager service is enabled and running
+  systemd:
+    name: NetworkManager
+    enabled: yes
+    state: started

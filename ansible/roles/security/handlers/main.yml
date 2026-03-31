@@ -1,0 +1,8 @@
+---
+- name: reload iptables
+  shell: iptables-restore < /etc/iptables/rules.v4
+
+- name: restart fail2ban
+  systemd:
+    name: fail2ban
+    state: restarted

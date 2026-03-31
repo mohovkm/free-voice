@@ -1,0 +1,96 @@
+---
+- name: Create livekit system user
+  user:
+    name: "{{ livekit_user }}"
+    system: yes
+    shell: /usr/sbin/nologin
+    home: "{{ livekit_install_path }}"
+    create_home: no
+
+- name: Create livekit directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ livekit_user }}"
+    group: "{{ livekit_group }}"
+    mode: '0750'
+  loop:
+    - "{{ livekit_install_path }}"
+    - "{{ livekit_install_path }}/logs"
+
+# --- Binary download ---
+
+- name: Check if LiveKit binary exists
+  stat:
+    path: "{{ livekit_install_path }}/livekit-server"
+  register: livekit_binary
+
+- name: Map target architecture to LiveKit release architecture name
+  set_fact:
+    _livekit_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'armv7l': 'armv7'}[ansible_architecture] }}"
+
+- name: Download LiveKit {{ livekit_version }} binary archive
+  get_url:
+    url: "https://github.com/livekit/livekit/releases/download/v{{ livekit_version }}/livekit_{{ livekit_version }}_linux_{{ _livekit_arch }}.tar.gz"
+    dest: /tmp/livekit.tar.gz
+    mode: '0644'
+  when: not livekit_binary.stat.exists
+
+- name: Extract LiveKit binary
+  unarchive:
+    src: /tmp/livekit.tar.gz
+    dest: /tmp/
+    remote_src: yes
+  when: not livekit_binary.stat.exists
+
+- name: Install LiveKit binary
+  copy:
+    src: /tmp/livekit-server
+    dest: "{{ livekit_install_path }}/livekit-server"
+    remote_src: yes
+    owner: "{{ livekit_user }}"
+    group: "{{ livekit_group }}"
+    mode: '0755'
+  when: not livekit_binary.stat.exists
+
+- name: Clean up LiveKit archive
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/livekit.tar.gz
+    - /tmp/livekit-server
+  when: not livekit_binary.stat.exists
+
+- name: Verify LiveKit binary
+  command: "{{ livekit_install_path }}/livekit-server --version"
+  register: livekit_verify
+  changed_when: false
+
+- name: Show LiveKit version
+  debug:
+    msg: "{{ livekit_verify.stdout }}"
+
+# --- Config and service ---
+
+- name: Deploy LiveKit configuration
+  template:
+    src: livekit.yaml.j2
+    dest: "{{ livekit_install_path }}/livekit.yaml"
+    owner: "{{ livekit_user }}"
+    group: "{{ livekit_group }}"
+    mode: '0640'
+  notify: restart livekit
+
+- name: Deploy LiveKit systemd service
+  template:
+    src: livekit.service.j2
+    dest: /etc/systemd/system/livekit.service
+  notify: restart livekit
+
+- name: Enable and start LiveKit
+  systemd:
+    name: livekit
+    enabled: yes
+    state: started
+    daemon_reload: yes

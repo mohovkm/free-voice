@@ -1,0 +1,43 @@
+*filter
+
+# Default policies
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# Allow loopback
+-A INPUT -i lo -j ACCEPT
+
+# Allow established connections
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# Allow SSH from LAN without rate limit
+-A INPUT -p tcp --dport 22 -s {{ config.pi_gateway }}/24 -j ACCEPT
+# Allow SSH (rate-limited for external)
+-A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --set
+-A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 4 -j DROP
+-A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow HTTP (for Let's Encrypt challenges and redirect)
+-A INPUT -p tcp --dport {{ http_port }} -j ACCEPT
+
+# Allow HTTPS on {{ https_port }}
+-A INPUT -p tcp --dport {{ https_port }} -j ACCEPT
+
+# Allow SIP TLS
+-A INPUT -p tcp --dport {{ sip_tls_port }} -j ACCEPT
+
+# Allow RTP (media)
+-A INPUT -p udp --dport {{ rtp_port_start }}:{{ rtp_port_end }} -j ACCEPT
+
+# Allow LiveKit RTC (WebRTC media and TCP fallback)
+-A INPUT -p tcp --dport {{ livekit_rtc_tcp_port }} -j ACCEPT
+-A INPUT -p udp --dport {{ livekit_rtc_port_start }}:{{ livekit_rtc_port_end }} -j ACCEPT
+
+# Allow ICMP (ping)
+-A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+
+# Drop invalid packets
+-A INPUT -m conntrack --ctstate INVALID -j DROP
+
+COMMIT

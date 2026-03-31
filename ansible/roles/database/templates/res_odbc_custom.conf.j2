@@ -1,0 +1,8 @@
+; FREE VOICE ODBC connector — managed by Ansible
+[freevoice]
+enabled=>yes
+dsn=>MySQL-freevoice
+pre-connect=>yes
+max_connections=>5
+username=>{{ freevoice_db_user }}
+password=>{{ vault_freevoice_db_password }}

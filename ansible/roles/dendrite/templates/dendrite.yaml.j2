@@ -1,0 +1,99 @@
+version: 2
+
+global:
+  server_name: "{{ config.duckdns_subdomain }}.duckdns.org"
+  private_key: "{{ dendrite_install_path }}/matrix_key.pem"
+  cache:
+    max_size_estimated: 64MB
+  well_known_server_name: "{{ config.duckdns_subdomain }}.duckdns.org:{{ https_port }}"
+  well_known_client_name: "https://{{ config.duckdns_subdomain }}.duckdns.org:{{ https_port }}"
+  trusted_third_party_id_servers: []
+  disable_federation: false
+  presence:
+    enable_inbound: true
+    enable_outbound: true
+
+# SQLite requires per-component database blocks (global database: is PostgreSQL-only)
+room_server:
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/roomserver.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+federation_api:
+  send_max_retries: 16
+  disable_tls_validation: false
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/federationapi.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+client_api:
+  registration_disabled: true
+  guests_disabled: true
+  registration_shared_secret: "{{ vault_dendrite_registration_secret }}"
+  rate_limiting:
+    enabled: true
+    threshold: 20
+    cooloff_ms: 500
+  # TURN not used — all calls go through LiveKit
+  turn: {}
+
+media_api:
+  base_path: "{{ dendrite_install_path }}/media"
+  max_file_size_bytes: 52428800
+  dynamic_thumbnails: true
+  max_thumbnail_generators: 2
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/mediaapi.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+  thumbnail_sizes:
+    - width: 32
+      height: 32
+      method: crop
+    - width: 96
+      height: 96
+      method: crop
+    - width: 640
+      height: 480
+      method: scale
+
+sync_api:
+  search:
+    enabled: true
+    index_path: "{{ dendrite_install_path }}/searchindex"
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/syncapi.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+user_api:
+  bcrypt_cost: 10
+  account_database:
+    connection_string: "file:{{ dendrite_install_path }}/userapi_accounts.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+key_server:
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/keyserver.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+relay_api:
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/relayapi.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+mscs:
+  mscs: []
+  database:
+    connection_string: "file:{{ dendrite_install_path }}/mscs.db"
+    max_open_conns: 5
+    max_idle_conns: 2
+
+logging:
+  - type: std
+    level: warn

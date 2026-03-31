@@ -1,0 +1,11 @@
+---
+- name: Network Configuration
+  hosts: pi
+  become: true
+  
+  
+  roles:
+    - role: network
+  
+  tags:
+    - network

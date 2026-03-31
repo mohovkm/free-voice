@@ -1,0 +1,12 @@
+---
+- name: Security and Firewall Configuration
+  hosts: pi
+  become: true
+  
+  
+  roles:
+    - role: security
+  
+  tags:
+    - security
+    - firewall

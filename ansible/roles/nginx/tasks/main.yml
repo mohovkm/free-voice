@@ -1,0 +1,45 @@
+---
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+
+- name: Check if Let's Encrypt certificate exists
+  stat:
+    path: "/etc/letsencrypt/live/{{ config.duckdns_subdomain }}.duckdns.org/fullchain.pem"
+  register: letsencrypt_cert
+
+- name: Remove default nginx site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Configure nginx virtual host
+  template:
+    src: voip.conf.j2
+    dest: /etc/nginx/sites-available/voip.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: reload nginx
+
+- name: Remove existing sites-enabled file (if not a symlink)
+  file:
+    path: /etc/nginx/sites-enabled/voip.conf
+    state: absent
+  when: ansible_facts is defined
+  changed_when: false
+
+- name: Enable nginx virtual host
+  file:
+    src: /etc/nginx/sites-available/voip.conf
+    dest: /etc/nginx/sites-enabled/voip.conf
+    state: link
+    force: yes
+  notify: reload nginx
+
+- name: Enable and start nginx
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started

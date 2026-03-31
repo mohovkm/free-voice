@@ -1,0 +1,7 @@
+build/
+.svelte-kit/
+node_modules/
+coverage/
+playwright-report/
+playwright-report-real/
+e2e/

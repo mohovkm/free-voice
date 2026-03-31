@@ -1,0 +1,140 @@
+---
+- name: Set backend workspace path
+  ansible.builtin.set_fact:
+    backend_workspace_path: "{{ playbook_dir }}/../../backend/src"
+    backend_project_files:
+      - backend/pyproject.toml
+      - backend/uv.lock
+
+# Remove legacy room-api service (superseded by voip-api)
+- name: Stop and disable legacy room-api
+  systemd:
+    name: room-api
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+- name: Create API directory
+  file:
+    path: /opt/voip-api
+    state: directory
+    owner: www-data
+    group: www-data
+
+- name: Deploy API app
+  synchronize:
+    src: "{{ backend_workspace_path }}/"
+    dest: /opt/voip-api/
+    recursive: yes
+    delete: yes
+    rsync_opts:
+      - "--exclude=.venv/"
+      - "--checksum"
+  register: api_sync
+  notify: restart voip-api
+
+- name: Fix API file ownership
+  file:
+    path: /opt/voip-api
+    state: directory
+    owner: www-data
+    group: www-data
+    recurse: yes
+  when: api_sync.changed
+
+- name: Download uv installer
+  ansible.builtin.get_url:
+    url: https://astral.sh/uv/install.sh
+    dest: /tmp/uv-install.sh
+    mode: '0755'
+
+- name: Install uv via official installer
+  ansible.builtin.command:
+    cmd: /bin/sh /tmp/uv-install.sh
+    creates: /usr/local/bin/uv
+  environment:
+    UV_INSTALL_DIR: /usr/local/bin
+
+- name: Deploy backend project metadata
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../{{ item }}"
+    dest: "/opt/voip-api/{{ item | basename }}"
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  loop: "{{ backend_project_files }}"
+  register: backend_project_metadata
+  notify: restart voip-api
+
+- name: Sync backend dependencies with uv
+  ansible.builtin.command:
+    cmd: /usr/local/bin/uv sync --no-dev
+    chdir: /opt/voip-api
+  register: uv_sync
+  changed_when: "'Resolved' in uv_sync.stdout or 'Prepared' in uv_sync.stdout or 'Installed' in uv_sync.stdout or 'Uninstalled' in uv_sync.stdout"
+  when: api_sync.changed or backend_project_metadata.changed
+  notify: restart voip-api
+
+- name: Create /etc/voip-api directory
+  file:
+    path: /etc/voip-api
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0750'
+
+- name: Create uv cache directory
+  ansible.builtin.file:
+    path: /var/cache/voip-api-uv
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Deploy API environment file
+  template:
+    src: voip-api.env.j2
+    dest: /etc/voip-api/env
+    owner: www-data
+    group: www-data
+    mode: '0640'
+  notify: restart voip-api
+
+- name: Write VAPID private key to file
+  copy:
+    content: "{{ vault_vapid_private_key }}"
+    dest: /etc/voip-api-vapid.key
+    owner: www-data
+    group: www-data
+    mode: '0640'
+  notify: restart voip-api
+
+- name: Deploy systemd service
+  template:
+    src: voip-api.service.j2
+    dest: /etc/systemd/system/voip-api.service
+  notify: restart voip-api
+
+- name: Enable and start voip-api
+  ansible.builtin.systemd:
+    name: voip-api
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Flush API restart handlers before health check
+  ansible.builtin.meta: flush_handlers
+
+- name: Query voip-api systemd state
+  ansible.builtin.command:
+    cmd: systemctl show voip-api --property=ActiveState --property=SubState --property=Result
+  register: voip_api_systemd_state
+  changed_when: false
+
+- name: Assert voip-api is active and healthy
+  ansible.builtin.assert:
+    that:
+      - "'ActiveState=active' in voip_api_systemd_state.stdout_lines"
+      - "'SubState=running' in voip_api_systemd_state.stdout_lines"
+      - "'Result=success' in voip_api_systemd_state.stdout_lines or 'Result=' in voip_api_systemd_state.stdout_lines"
+    fail_msg: "voip-api did not reach a healthy systemd state. Raw output={{ voip_api_systemd_state.stdout_lines | join('; ') }}"

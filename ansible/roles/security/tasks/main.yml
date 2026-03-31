@@ -1,0 +1,38 @@
+---
+- name: Install security packages
+  apt:
+    name:
+      - iptables
+      - iptables-persistent
+      - fail2ban
+    state: present
+
+- name: Create iptables rules directory
+  file:
+    path: /etc/iptables
+    state: directory
+    mode: '0755'
+
+- name: Configure iptables rules
+  template:
+    src: iptables-rules.v4.j2
+    dest: /etc/iptables/rules.v4
+    mode: '0644'
+  notify: reload iptables
+
+- name: Load iptables rules
+  shell: iptables-restore < /etc/iptables/rules.v4
+  changed_when: false
+
+- name: Create Fail2ban jail.local
+  template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: '0644'
+  notify: restart fail2ban
+
+- name: Ensure Fail2ban service is enabled and started
+  systemd:
+    name: fail2ban
+    enabled: yes
+    state: started

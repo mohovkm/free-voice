@@ -1,0 +1,240 @@
+/* app.css — FREE VOICE design system */
+
+/* ── Reset ── */
+*,
+*::before,
+*::after {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+/* ── Theme tokens ── */
+:root {
+	/* Dark theme (default) */
+	--bg-primary: #17212b;
+	--bg-secondary: #242f3d;
+	--bg-tertiary: #0e1621;
+	--surface: #202c33;
+	--text-primary: #e9edef;
+	--text-secondary: #8696a0;
+	--text-muted: #667781;
+	--accent: #3390ec;
+	--accent-hover: #2b7fd4;
+	--danger: #e94560;
+	--danger-hover: #c73650;
+	--success: #00a884;
+	--border: #3b4a54;
+	--bubble-sent: #2b5278;
+	--bubble-recv: #242f3d;
+	--badge-bg: #3390ec;
+	--badge-text: #ffffff;
+	--overlay: rgba(0, 0, 0, 0.6);
+	--shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	--radius-sm: 8px;
+	--radius-md: 12px;
+	--radius-lg: 16px;
+	--radius-full: 9999px;
+}
+
+[data-theme='light'] {
+	--bg-primary: #ffffff;
+	--bg-secondary: #f7f8fa;
+	--bg-tertiary: #ebedf0;
+	--surface: #ffffff;
+	--text-primary: #111b21;
+	--text-secondary: #667781;
+	--text-muted: #8696a0;
+	--accent: #3390ec;
+	--accent-hover: #2b7fd4;
+	--border: #e9edef;
+	--bubble-sent: #effdde;
+	--bubble-recv: #ffffff;
+	--bubble-border: #e9edef;
+	--overlay: rgba(0, 0, 0, 0.4);
+	--shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Base ── */
+html {
+	height: 100%;
+}
+body {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	background: var(--bg-primary);
+	color: var(--text-primary);
+	height: 100dvh;
+	height: 100vh;
+	overflow: hidden;
+	-webkit-font-smoothing: antialiased;
+}
+
+a {
+	color: var(--accent);
+	text-decoration: none;
+}
+a:hover {
+	text-decoration: underline;
+}
+
+/* ── Typography ── */
+.text-sm {
+	font-size: 0.8125rem;
+}
+.text-base {
+	font-size: 0.9375rem;
+}
+.text-lg {
+	font-size: 1.125rem;
+}
+.text-muted {
+	color: var(--text-muted);
+}
+.text-secondary {
+	color: var(--text-secondary);
+}
+
+/* ── Buttons ── */
+button {
+	font: inherit;
+	cursor: pointer;
+	border: none;
+	background: none;
+	color: inherit;
+}
+button:active {
+	transform: scale(0.96);
+}
+
+.btn-primary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 12px 24px;
+	background: var(--accent);
+	color: #fff;
+	border-radius: var(--radius-md);
+	font-weight: 600;
+	font-size: 0.9375rem;
+	transition: background 0.15s;
+}
+.btn-primary:hover {
+	background: var(--accent-hover);
+}
+
+.btn-secondary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 8px 16px;
+	background: var(--bg-secondary);
+	color: var(--text-primary);
+	border-radius: var(--radius-md);
+	font-size: 0.875rem;
+	transition: background 0.15s;
+}
+.btn-secondary:hover {
+	background: var(--border);
+}
+
+.btn-danger {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 12px 24px;
+	background: var(--danger);
+	color: #fff;
+	border-radius: var(--radius-md);
+	font-weight: 600;
+	transition: background 0.15s;
+}
+.btn-danger:hover {
+	background: var(--danger-hover);
+}
+
+.btn-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border-radius: var(--radius-full);
+	transition: background 0.15s;
+	color: var(--text-secondary);
+}
+.btn-icon:hover {
+	background: var(--bg-secondary);
+}
+
+/* ── Inputs ── */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'] {
+	width: 100%;
+	padding: 12px 16px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border);
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
+	font-size: 0.9375rem;
+}
+input:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+input::placeholder {
+	color: var(--text-muted);
+}
+
+@media (hover: none) and (pointer: coarse) {
+	input[type='text'],
+	input[type='email'],
+	input[type='password'],
+	input[type='search'],
+	textarea {
+		font-size: 16px;
+	}
+}
+
+/* ── Cards ── */
+.card {
+	background: var(--surface);
+	border-radius: var(--radius-lg);
+	padding: 32px;
+	box-shadow: var(--shadow);
+}
+
+/* ── Utilities ── */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ── Safe areas ── */
+.safe-top {
+	padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+	padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+}

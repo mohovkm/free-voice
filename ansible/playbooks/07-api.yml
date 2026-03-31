@@ -1,0 +1,6 @@
+---
+- name: Deploy FREE VOICE API
+  hosts: pi
+  become: yes
+  roles:
+    - api

@@ -1,0 +1,23 @@
+-- Migrate static WebRTC room endpoints to PJSIP Realtime
+-- These replicate the settings from pjsip.endpoint_custom_post.conf.j2
+-- Password is templated by Ansible
+
+{% for room in range(1, 4) %}
+{% for user in range(1, 3) %}
+{% set ep = 'room' ~ room ~ '-user' ~ user %}
+INSERT IGNORE INTO ps_endpoints (id, transport, aors, auth, context, disallow, allow,
+  webrtc, dtls_auto_generate_cert, ice_support, media_encryption,
+  media_use_received_transport, timers, timers_sess_expires, timers_min_se,
+  trust_id_inbound, device_state_busy_at, max_audio_streams, max_video_streams)
+VALUES ('{{ ep }}', '0.0.0.0-wss', '{{ ep }}', '{{ ep }}-auth', 'webrtc-rooms', 'all',
+  'opus,ulaw,alaw,vp8', 'yes', 'yes', 'yes', 'dtls', 'yes', 'yes', 90, 90,
+  'yes', 1, 1, 1);
+
+INSERT IGNORE INTO ps_auths (id, auth_type, username, password)
+VALUES ('{{ ep }}-auth', 'userpass', '{{ ep }}', '{{ vault_webrtc_room_password }}');
+
+INSERT IGNORE INTO ps_aors (id, max_contacts, remove_existing, qualify_frequency, qualify_timeout)
+VALUES ('{{ ep }}', 1, 'yes', 15, 3.0);
+
+{% endfor %}
+{% endfor %}

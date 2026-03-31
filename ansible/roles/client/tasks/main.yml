@@ -1,0 +1,33 @@
+---
+- name: Set client workspace path
+  ansible.builtin.set_fact:
+    client_workspace_path: "{{ playbook_dir }}/../../client"
+
+- name: Type-check client locally
+  delegate_to: localhost
+  become: false
+  ansible.builtin.shell: npm run check
+  args:
+    chdir: "{{ client_workspace_path }}"
+
+- name: Build client locally
+  delegate_to: localhost
+  become: false
+  ansible.builtin.shell: npm run build
+  args:
+    chdir: "{{ client_workspace_path }}"
+
+- name: Create client directory
+  ansible.builtin.file:
+    path: "{{ client_install_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy client build
+  ansible.posix.synchronize:
+    src: "{{ client_workspace_path }}/build/"
+    dest: "{{ client_install_path }}/"
+    delete: yes
+    recursive: yes

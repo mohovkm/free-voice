@@ -1,0 +1,12 @@
+---
+- name: System Preparation
+  hosts: pi
+  become: true
+  
+  
+  roles:
+    - role: system_prep
+  
+  tags:
+    - system
+    - prep

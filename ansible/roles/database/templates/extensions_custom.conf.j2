@@ -1,0 +1,16 @@
+; Custom extensions — managed by Ansible
+; Pattern-match dialplan: any extension → stale cleanup → ConfBridge
+; Replaces per-room hardcoded extensions
+
+[webrtc-rooms]
+exten => _.,1,Answer()
+ same => n,Set(EP=${CHANNEL(endpoint)})
+ same => n,Set(CHANNELS=${CHANNELS(PJSIP/${EP}-)})
+ same => n,Set(FOUND_STALE=0)
+ same => n,While($["${SET(CHAN=${SHIFT(CHANNELS,&)})}" != ""])
+ same => n,ExecIf($["${CHAN}" != "${CHANNEL}"]?SoftHangup(${CHAN},a))
+ same => n,ExecIf($["${CHAN}" != "${CHANNEL}"]?Set(FOUND_STALE=1))
+ same => n,EndWhile()
+ same => n,ExecIf($[${FOUND_STALE}]?Wait(1))
+ same => n,ConfBridge(${EXTEN},default_bridge,default_user)
+ same => n,Hangup()

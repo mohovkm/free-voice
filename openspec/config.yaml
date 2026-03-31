@@ -1,0 +1,15 @@
+schema: spec-driven
+
+context: |
+  Platform: Raspberry Pi 4 (4GB RAM, 64GB SSD), Raspberry Pi OS 64-bit
+  Core: Asterisk 20+ with FreePBX 17, migrating to Matrix (Dendrite) + LiveKit
+  Backend: FastAPI (Python), MariaDB, astdb.sqlite3
+  Frontend: SvelteKit SPA, WebRTC video (1080p)
+  Deployment: Ansible playbooks, nginx TLS termination, coturn TURN server
+  CI: GitHub Actions on self-hosted arm64 runner (separate Pi, outbound-only)
+  Key constraints:
+    - Never access DB directly; use FastAPI endpoints
+    - Never use safe_asterisk; use systemctl restart asterisk
+    - Never replace directory synchronize with file-by-file copy
+    - Keep timers_min_se >= 90 on Asterisk WebRTC endpoints
+    - Treat astdb.sqlite3 and Dendrite state as persistent

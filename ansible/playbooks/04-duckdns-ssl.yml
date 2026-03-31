@@ -1,0 +1,12 @@
+---
+- name: DuckDNS and SSL Certificate Configuration
+  hosts: pi
+  become: true
+  
+  
+  roles:
+    - role: duckdns_ssl
+  
+  tags:
+    - duckdns
+    - ssl

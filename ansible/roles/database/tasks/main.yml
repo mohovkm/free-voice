@@ -1,0 +1,80 @@
+---
+# roles/database/tasks/main.yml — FREE VOICE database + PJSIP Realtime setup
+
+# --- MariaDB: create database and user ---
+
+- name: Create freevoice database
+  community.mysql.mysql_db:
+    name: "{{ freevoice_db_name }}"
+    state: present
+    login_user: root
+    login_password: "{{ vault_mysql_root_password }}"
+
+- name: Create freevoice database user
+  community.mysql.mysql_user:
+    name: "{{ freevoice_db_user }}"
+    password: "{{ vault_freevoice_db_password }}"
+    priv: "{{ freevoice_db_name }}.*:ALL"
+    host: localhost
+    state: present
+    login_user: root
+    login_password: "{{ vault_mysql_root_password }}"
+
+# --- Application schema ---
+
+- name: Copy application schema
+  copy:
+    src: schema.sql
+    dest: /tmp/freevoice_schema.sql
+    mode: '0644'
+
+- name: Check if schema already imported
+  stat:
+    path: /tmp/.freevoice_schema_imported
+  register: schema_flag
+
+- name: Import application schema
+  community.mysql.mysql_db:
+    name: "{{ freevoice_db_name }}"
+    state: import
+    target: /tmp/freevoice_schema.sql
+    login_user: "{{ freevoice_db_user }}"
+    login_password: "{{ vault_freevoice_db_password }}"
+  when: not schema_flag.stat.exists
+
+- name: Mark schema as imported
+  file:
+    path: /tmp/.freevoice_schema_imported
+    state: touch
+  when: not schema_flag.stat.exists
+
+# --- Versioned migrations ---
+
+- name: Copy migration files
+  copy:
+    src: "migrations/"
+    dest: /tmp/freevoice_migrations/
+    mode: '0644'
+
+- name: Find migration files
+  find:
+    paths: /tmp/freevoice_migrations
+    patterns: "*.sql"
+  register: migration_files
+
+- name: Run migrations
+  shell: |
+    applied=$(mysql -u {{ freevoice_db_user }} -p'{{ vault_freevoice_db_password }}' {{ freevoice_db_name }} -sNe \
+      "CREATE TABLE IF NOT EXISTS schema_migrations (version VARCHAR(255) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP); SELECT version FROM schema_migrations WHERE version='{{ item | basename }}';" 2>/dev/null)
+    if [ -z "$applied" ]; then
+      mysql -u {{ freevoice_db_user }} -p'{{ vault_freevoice_db_password }}' {{ freevoice_db_name }} < /tmp/freevoice_migrations/{{ item | basename }} && \
+      mysql -u {{ freevoice_db_user }} -p'{{ vault_freevoice_db_password }}' {{ freevoice_db_name }} -e \
+        "INSERT INTO schema_migrations (version) VALUES ('{{ item | basename }}');"
+      echo "APPLIED"
+    else
+      echo "SKIP"
+    fi
+  loop: "{{ (migration_files.files | map(attribute='path') | sort) }}"
+  register: migration_results
+  changed_when: "'APPLIED' in migration_results.stdout"
+

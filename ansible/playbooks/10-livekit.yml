@@ -1,0 +1,5 @@
+---
+- name: Deploy LiveKit SFU server
+  hosts: pi
+  roles:
+    - livekit

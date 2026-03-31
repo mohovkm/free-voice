@@ -1,0 +1,19 @@
+[Unit]
+Description=Dendrite Matrix Homeserver
+After=network.target
+
+[Service]
+Type=simple
+User={{ dendrite_user }}
+Group={{ dendrite_group }}
+WorkingDirectory={{ dendrite_install_path }}
+ExecStart={{ dendrite_install_path }}/dendrite --config {{ dendrite_install_path }}/dendrite.yaml -really-enable-open-registration
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

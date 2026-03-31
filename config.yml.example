@@ -1,0 +1,50 @@
+# Raspberry Pi VoIP System - Operator Configuration Template
+# Copy this file to config.yml for your local deployment settings.
+# Keep config.yml out of version control; only this template should be tracked.
+
+# ============================================
+# DuckDNS Configuration
+# ============================================
+duckdns_subdomain: "your-subdomain"  # Your DuckDNS subdomain (without .duckdns.org)
+
+# ============================================
+# Raspberry Pi Network Configuration
+# ============================================
+pi_static_ip: "192.168.1.100"  # Desired static IP for your Pi
+pi_netmask: "255.255.255.0"
+pi_gateway: "192.168.1.1"      # Your router's IP address
+
+# ============================================
+# Raspberry Pi User
+# ============================================
+pi_username: "pi"  # SSH username for your Pi
+pi_ssh_key: "~/.ssh/id_ed25519"  # Path to your SSH private key
+
+# ============================================
+# System Configuration
+# ============================================
+timezone: "UTC"
+locale: "en_US.UTF-8"
+
+# ============================================
+# Session Configuration
+# ============================================
+session_default_duration: 3600  # Guest session duration in seconds (60 minutes)
+session_cleanup_interval: 300   # Cleanup check interval in seconds (5 minutes)
+
+# ============================================
+# Email (SMTP)
+# ============================================
+smtp_host: "smtp.example.com"
+smtp_port: 587
+smtp_from: "noreply@example.com"
+smtp_starttls: true
+smtp_ssl: false
+email_verify_ttl_hours: 24
+
+# ============================================
+# NOTES
+# ============================================
+# 1. Create your local file with: cp config.yml.example config.yml
+# 2. Keep secrets (passwords, tokens, API secrets) in inventory/group_vars/all/vault.yml
+# 3. inventory/hosts.yml loads your local config.yml at runtime

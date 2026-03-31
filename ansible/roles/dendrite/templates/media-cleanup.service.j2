@@ -1,0 +1,15 @@
+[Unit]
+Description=Dendrite media retention cleanup
+After=network.target
+
+[Service]
+Type=oneshot
+User={{ dendrite_user }}
+Group={{ dendrite_group }}
+ExecStart=/usr/bin/python3 {{ dendrite_install_path }}/media_cleanup.py \
+  --media-dir {{ dendrite_install_path }}/media \
+  --db-path {{ dendrite_install_path }}/mediaapi.db \
+  --ttl-days {{ media_ttl_days }} \
+  --disk-budget-gb {{ media_disk_budget_gb }}
+StandardOutput=journal
+StandardError=journal

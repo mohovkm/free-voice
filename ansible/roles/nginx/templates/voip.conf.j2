@@ -1,0 +1,151 @@
+{% if letsencrypt_cert.stat.exists %}
+# Redirect HTTP to HTTPS on 8443
+server {
+    listen 80;
+    server_name {{ config.duckdns_subdomain }}.duckdns.org;
+    return 301 https://$server_name:{{ https_port }}$request_uri;
+}
+
+server {
+    listen {{ https_port }} ssl;
+    server_name {{ config.duckdns_subdomain }}.duckdns.org;
+
+    ssl_certificate /etc/letsencrypt/live/{{ config.duckdns_subdomain }}.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ config.duckdns_subdomain }}.duckdns.org/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+{% else %}
+# HTTP only (no certificate)
+server {
+    listen 80;
+    server_name {{ config.duckdns_subdomain }}.duckdns.org;
+{% endif %}
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # FreePBX Admin
+    location /admin/ {
+        proxy_pass http://127.0.0.1:8080/admin/;
+        proxy_set_header Host $host:$server_port;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host:$server_port;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_redirect http://127.0.0.1:8080/ /;
+    }
+
+    location = /admin {
+        return 301 /admin/;
+    }
+
+    # WebSocket for Asterisk WebRTC
+    location /ws {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+
+    # API WebSocket (chat)
+    location /api/ws/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+
+    # API endpoints
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Linphone provisioning
+    location /provision/ {
+        if ($arg_key != "b72ff247edb7b28b83986357cc89bbe9") {
+            return 403;
+        }
+        alias /var/www/linphone/;
+        default_type application/xml;
+    }
+
+    # LiveKit SFU WebSocket and HTTP API
+    # Trailing slash on both sides is required — nginx strips the /livekit-ws/
+    # prefix so that livekit-client's appended /rtc path resolves correctly.
+    location /livekit-ws/ {
+        proxy_pass http://127.0.0.1:{{ livekit_port }}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+
+    # Matrix homeserver
+    location /_matrix/ {
+        proxy_pass http://127.0.0.1:{{ dendrite_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 50M;
+    }
+
+    # Matrix well-known delegation
+    location /.well-known/matrix/server {
+        default_type application/json;
+        return 200 '{"m.server":"{{ config.duckdns_subdomain }}.duckdns.org:{{ https_port }}"}';
+    }
+
+    location /.well-known/matrix/client {
+        default_type application/json;
+        add_header Access-Control-Allow-Origin "*";
+        return 200 '{"m.homeserver":{"base_url":"https://{{ config.duckdns_subdomain }}.duckdns.org:{{ https_port }}"}}';
+    }
+
+    # Hashed build assets (long cache)
+    location /_app/ {
+        root /var/www/voip-client;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Service worker (must not be cached)
+    location = /service-worker.js {
+        root /var/www/voip-client;
+        expires off;
+        add_header Cache-Control "no-cache";
+    }
+
+    # Client application (SPA fallback)
+    location / {
+        root /var/www/voip-client;
+        try_files $uri /index.html =404;
+        # index.html must never be cached — it references hashed assets
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+}

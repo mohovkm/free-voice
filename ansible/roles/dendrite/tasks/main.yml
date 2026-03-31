@@ -1,0 +1,229 @@
+---
+- name: Create dendrite system user
+  user:
+    name: "{{ dendrite_user }}"
+    system: yes
+    shell: /usr/sbin/nologin
+    home: "{{ dendrite_install_path }}"
+    create_home: no
+
+- name: Create dendrite directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ dendrite_user }}"
+    group: "{{ dendrite_group }}"
+    mode: '0750'
+  loop:
+    - "{{ dendrite_install_path }}"
+    - "{{ dendrite_install_path }}/media"
+
+# --- Dendrite build ---
+
+- name: Check if Dendrite binary exists
+  stat:
+    path: "{{ dendrite_install_path }}/dendrite"
+  register: dendrite_binary
+
+# --- Go installation ---
+
+- name: Check if Go is already installed
+  stat:
+    path: /usr/local/go/bin/go
+  register: go_preinstalled
+
+- name: Map target architecture to Go architecture name
+  set_fact:
+    _go_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'armv7l': 'armv6l', 'armv6l': 'armv6l', 'i386': '386', 'i686': '386'}[ansible_architecture] }}"
+
+- name: Download Go {{ go_version }}
+  get_url:
+    url: "https://go.dev/dl/go{{ go_version }}.linux-{{ _go_arch }}.tar.gz"
+    dest: /tmp/go.tar.gz
+    mode: '0644'
+  when: not go_preinstalled.stat.exists and not dendrite_binary.stat.exists
+
+- name: Install Go {{ go_version }}
+  unarchive:
+    src: /tmp/go.tar.gz
+    dest: /usr/local
+    remote_src: yes
+  when: not go_preinstalled.stat.exists and not dendrite_binary.stat.exists
+
+- name: Build Dendrite {{ dendrite_version }}
+  command: /usr/local/go/bin/go install github.com/element-hq/dendrite/cmd/dendrite@v{{ dendrite_version }}
+  environment:
+    GOPATH: /tmp/dendrite-build
+    GOMODCACHE: /tmp/dendrite-build/mod
+    HOME: /root
+  when: not dendrite_binary.stat.exists
+
+- name: Build generate-keys {{ dendrite_version }}
+  command: /usr/local/go/bin/go install github.com/element-hq/dendrite/cmd/generate-keys@v{{ dendrite_version }}
+  environment:
+    GOPATH: /tmp/dendrite-build
+    GOMODCACHE: /tmp/dendrite-build/mod
+    HOME: /root
+  when: not dendrite_binary.stat.exists
+
+- name: Build create-account {{ dendrite_version }}
+  command: /usr/local/go/bin/go install github.com/element-hq/dendrite/cmd/create-account@v{{ dendrite_version }}
+  environment:
+    GOPATH: /tmp/dendrite-build
+    GOMODCACHE: /tmp/dendrite-build/mod
+    HOME: /root
+  when: not dendrite_binary.stat.exists
+
+- name: Install Dendrite binaries
+  copy:
+    src: "/tmp/dendrite-build/bin/{{ item }}"
+    dest: "{{ dendrite_install_path }}/{{ item }}"
+    remote_src: yes
+    owner: "{{ dendrite_user }}"
+    group: "{{ dendrite_group }}"
+    mode: '0755'
+  loop:
+    - dendrite
+    - generate-keys
+    - create-account
+  when: not dendrite_binary.stat.exists
+
+- name: Verify Dendrite binary
+  command: "{{ dendrite_install_path }}/dendrite --version"
+  register: dendrite_verify
+  changed_when: false
+
+- name: Show Dendrite version
+  debug:
+    msg: "{{ dendrite_verify.stdout }}"
+
+# --- Cleanup: only if Go was installed by this task ---
+
+- name: Remove Go (installed by Ansible)
+  file:
+    path: /usr/local/go
+    state: absent
+  when: not go_preinstalled.stat.exists and not dendrite_binary.stat.exists
+
+- name: Remove Go tarball
+  file:
+    path: /tmp/go.tar.gz
+    state: absent
+  when: not go_preinstalled.stat.exists and not dendrite_binary.stat.exists
+
+- name: Remove Go build cache
+  file:
+    path: /tmp/dendrite-build
+    state: absent
+  when: not go_preinstalled.stat.exists and not dendrite_binary.stat.exists
+
+# --- Signing key, config, service ---
+
+- name: Generate Matrix signing key (if not exists)
+  command: "{{ dendrite_install_path }}/generate-keys --private-key {{ dendrite_install_path }}/matrix_key.pem"
+  args:
+    creates: "{{ dendrite_install_path }}/matrix_key.pem"
+
+- name: Set ownership of signing key
+  file:
+    path: "{{ dendrite_install_path }}/matrix_key.pem"
+    owner: "{{ dendrite_user }}"
+    group: "{{ dendrite_group }}"
+    mode: '0600'
+
+- name: Deploy Dendrite configuration
+  template:
+    src: dendrite.yaml.j2
+    dest: "{{ dendrite_install_path }}/dendrite.yaml"
+    owner: "{{ dendrite_user }}"
+    group: "{{ dendrite_group }}"
+    mode: '0640'
+  notify: restart dendrite
+
+- name: Deploy Dendrite systemd service
+  template:
+    src: dendrite.service.j2
+    dest: /etc/systemd/system/dendrite.service
+  notify: restart dendrite
+
+- name: Enable and start Dendrite
+  ansible.builtin.systemd:
+    name: dendrite
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+# --- Media retention cleanup ---
+
+- name: Deploy media cleanup script
+  copy:
+    src: media_cleanup.py
+    dest: "{{ dendrite_install_path }}/media_cleanup.py"
+    owner: "{{ dendrite_user }}"
+    group: "{{ dendrite_group }}"
+    mode: '0750'
+
+- name: Deploy media-cleanup systemd service
+  template:
+    src: media-cleanup.service.j2
+    dest: /etc/systemd/system/media-cleanup.service
+
+- name: Deploy media-cleanup systemd timer
+  template:
+    src: media-cleanup.timer.j2
+    dest: /etc/systemd/system/media-cleanup.timer
+
+- name: Enable and start media-cleanup timer
+  ansible.builtin.systemd:
+    name: media-cleanup.timer
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Flush Dendrite restart handlers before health checks
+  ansible.builtin.meta: flush_handlers
+
+- name: Query dendrite systemd state
+  ansible.builtin.command:
+    cmd: systemctl show dendrite --property=ActiveState --property=SubState --property=Result
+  register: dendrite_systemd_state
+  changed_when: false
+
+- name: Assert dendrite is active and healthy
+  ansible.builtin.assert:
+    that:
+      - "'ActiveState=active' in dendrite_systemd_state.stdout_lines"
+      - "'SubState=running' in dendrite_systemd_state.stdout_lines"
+      - "'Result=success' in dendrite_systemd_state.stdout_lines or 'Result=' in dendrite_systemd_state.stdout_lines"
+    fail_msg: "dendrite did not reach a healthy systemd state. Raw output={{ dendrite_systemd_state.stdout_lines | join('; ') }}"
+
+- name: Query media-cleanup timer systemd state
+  ansible.builtin.command:
+    cmd: systemctl show media-cleanup.timer --property=ActiveState --property=SubState --property=Result
+  register: media_cleanup_timer_state
+  changed_when: false
+
+- name: Assert media-cleanup timer is active and healthy
+  ansible.builtin.assert:
+    that:
+      - "'ActiveState=active' in media_cleanup_timer_state.stdout_lines"
+      - "'SubState=waiting' in media_cleanup_timer_state.stdout_lines"
+      - "'Result=success' in media_cleanup_timer_state.stdout_lines or 'Result=' in media_cleanup_timer_state.stdout_lines"
+    fail_msg: "media-cleanup.timer did not reach a healthy systemd state. Raw output={{ media_cleanup_timer_state.stdout_lines | join('; ') }}"
+
+- name: Query media-cleanup service load state
+  ansible.builtin.command:
+    cmd: systemctl show media-cleanup.service --property=LoadState --property=UnitFileState --property=Result
+  register: media_cleanup_service_state
+  changed_when: false
+
+- name: Assert media-cleanup service unit is loaded without a failed result
+  ansible.builtin.assert:
+    that:
+      - "'LoadState=loaded' in media_cleanup_service_state.stdout_lines"
+      - "'Result=failed' not in media_cleanup_service_state.stdout_lines"
+      - "'Result=exit-code' not in media_cleanup_service_state.stdout_lines"
+      - "'Result=signal' not in media_cleanup_service_state.stdout_lines"
+      - "'Result=core-dump' not in media_cleanup_service_state.stdout_lines"
+      - "'Result=timeout' not in media_cleanup_service_state.stdout_lines"
+    fail_msg: "media-cleanup.service is not in a healthy systemd state. Raw output={{ media_cleanup_service_state.stdout_lines | join('; ') }}"

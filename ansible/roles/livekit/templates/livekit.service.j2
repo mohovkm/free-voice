@@ -1,0 +1,16 @@
+[Unit]
+Description=LiveKit SFU Server
+After=network.target
+
+[Service]
+Type=simple
+User={{ livekit_user }}
+Group={{ livekit_group }}
+ExecStart={{ livekit_install_path }}/livekit-server --config {{ livekit_install_path }}/livekit.yaml
+WorkingDirectory={{ livekit_install_path }}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

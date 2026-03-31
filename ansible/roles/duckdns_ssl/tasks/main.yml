@@ -1,0 +1,136 @@
+---
+- name: Install certbot
+  apt:
+    name:
+      - certbot
+      - python3-certbot
+    state: present
+
+- name: Create DuckDNS update script
+  template:
+    src: duckdns-update.sh.j2
+    dest: /usr/local/bin/duckdns-update.sh
+    mode: '0755'
+
+- name: Create DuckDNS systemd service
+  copy:
+    dest: /etc/systemd/system/duckdns.service
+    content: |
+      [Unit]
+      Description=DuckDNS IP Update
+      After=network.target
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/duckdns-update.sh
+      
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+
+- name: Create DuckDNS systemd timer
+  copy:
+    dest: /etc/systemd/system/duckdns.timer
+    content: |
+      [Unit]
+      Description=DuckDNS IP Update Timer
+      
+      [Timer]
+      OnBootSec=5min
+      OnUnitActiveSec=5min
+      
+      [Install]
+      WantedBy=timers.target
+    mode: '0644'
+
+- name: Enable and start DuckDNS timer
+  systemd:
+    name: duckdns.timer
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Run DuckDNS update once
+  command: /usr/local/bin/duckdns-update.sh
+  changed_when: false
+
+- name: Check if certificate already exists
+  stat:
+    path: "/etc/letsencrypt/live/{{ config.duckdns_subdomain }}.duckdns.org/fullchain.pem"
+  register: cert_exists
+
+- name: Stop Nginx temporarily for certificate
+  systemd:
+    name: nginx
+    state: stopped
+  when: 
+    - not cert_exists.stat.exists
+    - obtain_cert | default(false) | bool
+  failed_when: false
+
+- name: Obtain Let's Encrypt certificate
+  command: >
+    certbot certonly --standalone --non-interactive --agree-tos
+    --email admin@{{ config.duckdns_subdomain }}.duckdns.org
+    -d {{ config.duckdns_subdomain }}.duckdns.org
+  when: 
+    - not cert_exists.stat.exists
+    - obtain_cert | default(false) | bool
+  register: cert_result
+  failed_when: false
+
+- name: Start Nginx after certificate
+  systemd:
+    name: nginx
+    state: started
+  when: 
+    - not cert_exists.stat.exists
+    - obtain_cert | default(false) | bool
+  failed_when: false
+
+- name: Display certificate message
+  debug:
+    msg: >
+      Certificate not obtained. Run with -e obtain_cert=true after configuring
+      router port forwarding (port 80) to obtain Let's Encrypt certificate.
+
+- name: Create certbot renewal systemd service
+  copy:
+    dest: /etc/systemd/system/certbot-renewal.service
+    content: |
+      [Unit]
+      Description=Certbot Renewal
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/certbot renew --quiet --post-hook "systemctl reload nginx"
+    mode: '0644'
+
+- name: Create certbot renewal systemd timer
+  copy:
+    dest: /etc/systemd/system/certbot-renewal.timer
+    content: |
+      [Unit]
+      Description=Certbot Renewal Timer
+      
+      [Timer]
+      OnCalendar=daily
+      RandomizedDelaySec=1h
+      
+      [Install]
+      WantedBy=timers.target
+    mode: '0644'
+
+- name: Enable and start certbot renewal timer
+  systemd:
+    name: certbot-renewal.timer
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Set certificate permissions for services
+  file:
+    path: "/etc/letsencrypt/live/{{ config.duckdns_subdomain }}.duckdns.org"
+    state: directory
+    mode: '0755'
+  when: cert_exists.stat.exists or not cert_exists.stat.exists

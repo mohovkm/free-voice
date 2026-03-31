@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Ansible
+*.retry
+.vault_pass
+group_vars/vault.yml
+host_vars/*/vault.yml
+ansible/inventory/group_vars/all/vault.yml
+ansible/inventory/host_vars/*/vault.yml
+
+# User configuration
+config.yml
+
+# IDE
+.vscode/
+.idea/
+.claude/settings.json
+.claude/settings.local.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# Secrets
+*.key
+*.pem
+*.crt
+secrets/
+.env
+.env.local
+.env.*.local
+
+# OpenSpec
+openspec/changes/
+openspec/changes/archive/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+test-results/
+client/coverage/
+playwright-report/
+playwright-report-real/
+node_modules
+.kiro/
+ansible/roles/client/.svelte-kit/
+ansible/roles/client/build/
+ansible/roles/client/node_modules/
+ansible/roles/client/playwright-report/
+ansible/roles/client/test-results/
+
+.claude/
+.codex/
+.kiro/

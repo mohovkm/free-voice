@@ -1,0 +1,11 @@
+---
+- name: Nginx Reverse Proxy Configuration
+  hosts: pi
+  become: true
+  
+  
+  roles:
+    - role: nginx
+  
+  tags:
+    - nginx

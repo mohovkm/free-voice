@@ -1,0 +1,20 @@
+port: {{ livekit_port }}
+bind_addresses:
+  - "0.0.0.0"
+
+rtc:
+  tcp_port: {{ livekit_rtc_tcp_port }}
+  port_range_start: {{ livekit_rtc_port_start }}
+  port_range_end: {{ livekit_rtc_port_end }}
+  use_external_ip: true
+
+keys:
+  {{ vault_livekit_api_key }}: {{ vault_livekit_api_secret }}
+
+logging:
+  json: false
+  level: info
+
+# TURN is handled by the existing coturn instance
+turn:
+  enabled: false

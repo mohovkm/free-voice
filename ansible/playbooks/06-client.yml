@@ -1,0 +1,8 @@
+---
+- name: Deploy WebRTC Client and Room API
+  hosts: pi
+  become: true
+
+
+  roles:
+    - client

@@ -1,0 +1,52 @@
+[project]
+name = "raspberry-voip"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "aiomysql",
+    "httpx",
+    "PyJWT",
+    "bcrypt",
+    "pydantic[email]",
+    "pywebpush>=2.3.0",
+]
+
+[tool.uv]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "PyJWT",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "UP",    # pyupgrade
+    "SIM",   # flake8-simplify
+    "RUF",   # ruff-specific
+]
+ignore = [
+    "E501",  # line length handled by formatter
+    "B008",  # Depends() in function defaults is standard FastAPI pattern
+]
+
+[tool.ruff.format]
+quote-style = "double"
